@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liga Badminton Ganda - Cloud Edition</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* CSS tetap sama seperti kode asli Anda untuk menjaga tampilan */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; }
+        body { background-color: #f0f8ff; color: #333; line-height: 1.4; padding: 10px; }
+        .container { max-width: 1300px; margin: 0 auto; background-color: white; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); padding: 15px; }
+        header { text-align: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #3498db; }
+        h1 { color: #2c3e50; margin-bottom: 8px; font-size: 1.8em; }
+        .subtitle { color: #7f8c8d; font-size: 0.95em; }
+        .section { margin-bottom: 20px; padding: 15px; border-radius: 6px; background-color: #f9f9f9; }
+        h2 { color: #2980b9; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 1.3em; }
+        .input-section { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+        input, button, select { padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background-color: #3498db; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #2980b9; }
+        button.reset { background-color: #e74c3c; }
+        .participant-tag { background-color: #3498db; color: white; padding: 6px 12px; border-radius: 15px; display: inline-flex; align-items: center; gap: 6px; margin: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        th { background-color: #3498db; color: white; padding: 10px; }
+        td { padding: 8px; text-align: center; border-bottom: 1px solid #ddd; }
+        .admin-status { font-weight: bold; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .admin-logged-in { background-color: #d4edda; color: #155724; }
+        .admin-logged-out { background-color: #f8d7da; color: #721c24; }
+        .champion { background-color: #ffeb3b; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-table-tennis"></i> Liga Badminton Ganda</h1>
+            <p class="subtitle">Data tersimpan otomatis di Cloud - Realtime</p>
+        </header>
+        
+        <div class="section" style="border: 1px solid #3498db;">
+            <h3><i class="fas fa-user-shield"></i> Panel Admin</h3>
+            <div class="input-section">
+                <input type="password" id="adminPassword" placeholder="Password admin">
+                <button onclick="adminLogin()">Login</button>
+                <button onclick="adminLogout()" class="reset">Logout</button>
+                <span id="adminStatus" class="admin-status admin-logged-out">Offline</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2><i class="fas fa-users"></i> Peserta</h2>
+            <div class="input-section">
+                <input type="text" id="teamInput" placeholder="Nama tim">
+                <button onclick="addTeam()">Tambah</button>
+                <button onclick="generateSchedule()" style="background-color: #2ecc71;">Generate Jadwal</button>
+                <button onclick="resetLeague()" class="reset">Reset Semua</button>
+            </div>
+            <div id="teamsContainer"></div>
+        </div>
+
+        <div class="section">
+            <h2><i class="fas fa-calendar-day"></i> Jadwal & Skor</h2>
+            <div id="scheduleContainer"></div>
+        </div>
+
+        <div class="section">
+            <h2><i class="fas fa-trophy"></i> Klasemen</h2>
+            <div id="standingsContainer"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // === MASUKKAN CONFIG FIREBASE ANDA DI SINI ===
+        const firebaseConfig = {
+            apiKey: "ISI_API_KEY_ANDA",
+            authDomain: "NAMA_PROYEK.firebaseapp.com",
+            databaseURL: "https://NAMA_PROYEK.firebaseio.com",
+            projectId: "NAMA_PROYEK",
+            storageBucket: "NAMA_PROYEK.appspot.com",
+            messagingSenderId: "ID_ANDA",
+            appId: "APP_ID_ANDA"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const dbRef = ref(db, 'liga_badminton');
+
+        let teams = [];
+        let matches = [];
+        let nextId = 1;
+        let isAdminLoggedIn = false;
+
+        // Sync Data dari Cloud secara Otomatis
+        onValue(dbRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                teams = data.teams || [];
+                matches = data.matches || [];
+                nextId = data.nextId || 1;
+                renderTeams();
+                updateScheduleDisplay();
+                updateStandings();
+            }
+        });
+
+        function saveToCloud() {
+            set(dbRef, { teams, matches, nextId });
+        }
+
+        // Global functions agar bisa dipanggil dari onclick HTML
+        window.adminLogin = () => {
+            if (document.getElementById('adminPassword').value === "badminton123") {
+                isAdminLoggedIn = true;
+                document.getElementById('adminStatus').innerText = "Admin Logged In";
+                document.getElementById('adminStatus').className = "admin-status admin-logged-in";
+                renderTeams();
+                updateScheduleDisplay();
+            } else { alert("Salah password!"); }
+        };
+
+        window.adminLogout = () => {
+            isAdminLoggedIn = false;
+            document.getElementById('adminStatus').innerText = "Offline";
+            document.getElementById('adminStatus').className = "admin-status admin-logged-out";
+            renderTeams();
+            updateScheduleDisplay();
+        };
+
+        window.addTeam = () => {
+            if (!isAdminLoggedIn) return alert("Hanya admin!");
+            const name = document.getElementById('teamInput').value;
+            if (!name) return;
+            teams.push({ id: nextId++, name, points: 0, wins: 0, losses: 0, matchesPlayed: 0, scoreDifference: 0 });
+            saveToCloud();
+            document.getElementById('teamInput').value = "";
+        };
+
+        window.deleteTeam = (id) => {
+            if (!isAdminLoggedIn) return;
+            teams = teams.filter(t => t.id !== id);
+            matches = matches.filter(m => m.homeTeamId !== id && m.awayTeamId !== id);
+            saveToCloud();
+        };
+
+        window.generateSchedule = () => {
+            if (!isAdminLoggedIn || teams.length < 2) return alert("Minimal 2 tim & harus login admin!");
+            matches = [];
+            for (let i = 0; i < teams.length; i++) {
+                for (let j = i + 1; j < teams.length; j++) {
+                    matches.push({
+                        id: Date.now() + Math.random(),
+                        homeTeamId: teams[i].id, homeTeamName: teams[i].name,
+                        awayTeamId: teams[j].id, awayTeamName: teams[j].name,
+                        homeScore: null, awayScore: null, completed: false, dateTime: "", notes: ""
+                    });
+                }
+            }
+            saveToCloud();
+        };
+
+        window.saveMatch = (mid) => {
+            const match = matches.find(m => m.id === mid);
+            match.homeScore = parseInt(document.querySelector(`.h-${mid}`).value);
+            match.awayScore = parseInt(document.querySelector(`.a-${mid}`).value);
+            match.dateTime = document.querySelector(`.d-${mid}`).value;
+            match.notes = document.querySelector(`.n-${mid}`).value;
+            match.completed = true;
+            saveToCloud();
+        };
+
+        window.resetLeague = () => {
+            if (confirm("Hapus semua data?") && isAdminLoggedIn) {
+                teams = []; matches = []; nextId = 1;
+                saveToCloud();
+            }
+        };
+
+        // Fungsi Render (Tampilan)
+        function renderTeams() {
+            const container = document.getElementById('teamsContainer');
+            container.innerHTML = teams.map(t => `
+                <div class="participant-tag">
+                    ${t.name} ${isAdminLoggedIn ? `<i class="fas fa-times" onclick="deleteTeam(${t.id})" style="cursor:pointer"></i>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function updateScheduleDisplay() {
+            const container = document.getElementById('scheduleContainer');
+            if (matches.length === 0) { container.innerHTML = "Belum ada jadwal."; return; }
+            
+            container.innerHTML = `<table>
+                <tr><th>Waktu & Lapangan</th><th>Pertandingan</th><th>Skor</th><th>Aksi</th></tr>
+                ${matches.map(m => `
+                    <tr>
+                        <td>
+                            <input type="datetime-local" class="d-${m.id}" value="${m.dateTime}" ${!isAdminLoggedIn ? 'disabled' : ''}><br>
+                            <input type="text" placeholder="Catatan" class="n-${m.id}" value="${m.notes}" ${!isAdminLoggedIn ? 'disabled' : ''}>
+                        </td>
+                        <td>${m.homeTeamName} vs ${m.awayTeamName}</td>
+                        <td>
+                            <input type="number" class="h-${m.id}" style="width:40px" value="${m.homeScore}" ${!isAdminLoggedIn ? 'disabled' : ''}> - 
+                            <input type="number" class="a-${m.id}" style="width:40px" value="${m.awayScore}" ${!isAdminLoggedIn ? 'disabled' : ''}>
+                        </td>
+                        <td>${isAdminLoggedIn ? `<button onclick="saveMatch(${m.id})">Simpan</button>` : (m.completed ? 'Selesai' : 'Belum')}</td>
+                    </tr>
+                `).join('')}
+            </table>`;
+        }
+
+        function updateStandings() {
+            // Logika hitung klasemen sama seperti sebelumnya
+            teams.forEach(t => { t.points = 0; t.wins = 0; t.losses = 0; t.matchesPlayed = 0; t.scoreDifference = 0; });
+            matches.forEach(m => {
+                if (m.completed) {
+                    const h = teams.find(t => t.id === m.homeTeamId);
+                    const a = teams.find(t => t.id === m.awayTeamId);
+                    if (h && a) {
+                        h.matchesPlayed++; a.matchesPlayed++;
+                        h.scoreDifference += (m.homeScore - m.awayScore);
+                        a.scoreDifference += (m.awayScore - m.homeScore);
+                        if (m.homeScore > m.awayScore) { h.points += 3; h.wins++; a.losses++; }
+                        else if (m.homeScore < m.awayScore) { a.points += 3; a.wins++; h.losses++; }
+                        else { h.points += 1; a.points += 1; }
+                    }
+                }
+            });
+            teams.sort((a, b) => b.points - a.points || b.scoreDifference - a.scoreDifference);
+            
+            document.getElementById('standingsContainer').innerHTML = `<table>
+                <tr><th>#</th><th>Tim</th><th>Main</th><th>W</th><th>L</th><th>+/-</th><th>Poin</th></tr>
+                ${teams.map((t, i) => `<tr class="${i === 0 && t.points > 0 ? 'champion' : ''}">
+                    <td>${i+1}</td><td>${t.name}</td><td>${t.matchesPlayed}</td><td>${t.wins}</td><td>${t.losses}</td><td>${t.scoreDifference}</td><td>${t.points}</td>
+                </tr>`).join('')}
+            </table>`;
+        }
+    </script>
+</body>
+</html>
