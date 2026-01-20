@@ -264,13 +264,13 @@
 							<span class="${m.done ? 'status-selesai' : 'status-pending'}">${m.done ? 'Selesai' : 'Pending'}</span>
                         </div>
                         <div class="d-flex align-items-center justify-content-between">
-                            <div class="text-truncate fw-bold" style="width:35%">${m.t1}</div>
+                            <div class="fw-bold" style="flex: 1; min-width: 0; word-wrap: break-word;">${m.t1}</div>
                             <div class="d-flex gap-1">
                                 <input type="number" class="score-input" value="${m.s1}" ${!isAdmin ? 'disabled' : ''} oninput="editMatch(${i}, 's1', this.value)">
                                 <input type="number" class="score-input" value="${m.s2}" ${!isAdmin ? 'disabled' : ''} oninput="editMatch(${i}, 's2', this.value)">
 								${isAdmin ? `<button class="btn btn-sm btn-outline-danger ms-1" title="Simpan Skor Ini" onclick="saveToSheets()">☁️</button>` : ''}
 							</div>
-                            <div class="text-truncate fw-bold text-end" style="width:35%">${m.t2}</div>
+                            <div class="fw-bold text-end" style="flex: 1; min-width: 0; word-wrap: break-word;>${m.t2}</div>
                         </div>
                         ${isAdmin ? 
                         `<input type="text" class="note-input mt-2 form-control form-control-sm" placeholder="Catatan..." value="${m.note || ''}" onchange="editMatch(${i}, 'note', this.value)">` :
@@ -376,5 +376,6 @@
 </script>
 </body>
 </html>
+
 
 
