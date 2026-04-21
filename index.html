@@ -85,7 +85,7 @@
                         <thead class="table-dark">
                             <tr style="font-size: 0.8rem;">
                                 <th>TIM</th>
-                                <th>M</th><th>W</th><th>L</th><th>+/-</th><th>POIN</th>
+                                <th>M</th><th>W</th><th>L</th><!--<th>+/-</th>--><th>POIN</th>
                             </tr>
                         </thead>
                         <tbody id="standingsBody" style="font-size: 0.9rem;"></tbody>
@@ -310,7 +310,7 @@
             <tr>
                 <td class="text-start fw-bold">${idx<3?['🥇','🥈','🥉'][idx]:''} ${s.name}</td>
                 <td>${s.m}</td><td>${s.w}</td><td>${s.l}</td>
-                <td class="${s.diff>=0?'text-success':'text-danger'} fw-bold">${s.diff>0?'+'+s.diff:s.diff}</td>
+                <!-- <td class="${s.diff>=0?'text-success':'text-danger'} fw-bold">${s.diff>0?'+'+s.diff:s.diff}</td> -->
                 <td class="points-cell">${s.p}</td>
             </tr>
         `).join('');
