@@ -85,7 +85,8 @@
                         <thead class="table-dark">
                             <tr style="font-size: 0.8rem;">
                                 <th>TIM</th>
-                                <th>M</th><th>W</th><th>L</th><!--<th>+/-</th>--><th>POIN</th>
+                                <th>M</th><th>W</th><th>L</th>
+        						<th>PM</th> <th>POIN</th>
                             </tr>
                         </thead>
                         <tbody id="standingsBody" style="font-size: 0.9rem;"></tbody>
@@ -282,39 +283,55 @@
     }
 
     function calculateStandings() {
-        const currentCat = document.getElementById('categoryFilter').value.trim();
-        document.getElementById('categoryLabel').innerText = currentCat ? `(${currentCat})` : "";
-        
-        const filtered = matches.filter(m => m.category === currentCat);
-        let catTeams = [...new Set(filtered.map(m => [m.t1, m.t2]).flat())];
-        
-        let stats = {};
-        catTeams.forEach(name => { if(name !== "BYE") stats[name] = { m:0, w:0, l:0, pm:0, pk:0, diff:0, p:0 }; });
+    const currentCat = document.getElementById('categoryFilter').value.trim();
+    document.getElementById('categoryLabel').innerText = currentCat ? `(${currentCat})` : "";
+    
+    const filtered = matches.filter(m => m.category === currentCat);
+    let catTeams = [...new Set(filtered.map(m => [m.t1, m.t2]).flat())];
+    
+    let stats = {};
+    catTeams.forEach(name => { 
+        if(name !== "BYE") stats[name] = { m:0, w:0, l:0, totalPoin:0, pm:0, pk:0, diff:0, p:0 }; 
+    });
 
-        filtered.forEach(m => {
-            if (m.done && stats[m.t1] && stats[m.t2]) {
-                let s1 = parseInt(m.s1), s2 = parseInt(m.s2);
-                stats[m.t1].m++; stats[m.t2].m++;
-                stats[m.t1].pm += s1; stats[m.t1].pk += s2;
-                stats[m.t2].pm += s2; stats[m.t2].pk += s1;
-                if (s1 > s2) { stats[m.t1].w++; stats[m.t1].p += 3; stats[m.t2].l++; }
-                else if (s2 > s1) { stats[m.t2].w++; stats[m.t2].p += 3; stats[m.t1].l++; }
+    filtered.forEach(m => {
+        if (m.done && stats[m.t1] && stats[m.t2]) {
+            let s1 = parseInt(m.s1) || 0;
+            let s2 = parseInt(m.s2) || 0;
+            
+            stats[m.t1].m++; stats[m.t2].m++;
+            
+            // Tambahkan skor ke total poin masing-masing
+            stats[m.t1].totalPoin += s1; 
+            stats[m.t2].totalPoin += s2;
+
+            stats[m.t1].pm += s1; stats[m.t1].pk += s2;
+            stats[m.t2].pm += s2; stats[m.t2].pk += s1;
+
+            if (s1 > s2) { 
+                stats[m.t1].w++; stats[m.t1].p += 3; stats[m.t2].l++; 
+            } else if (s2 > s1) { 
+                stats[m.t2].w++; stats[m.t2].p += 3; stats[m.t1].l++; 
             }
-        });
+        }
+    });
 
-        const sorted = Object.keys(stats).map(n => {
-            let item = stats[n]; item.diff = item.pm - item.pk; return { name: n, ...item };
-        }).sort((a,b) => (b.p - a.p) || (b.diff - a.diff));
+    const sorted = Object.keys(stats).map(n => {
+        let item = stats[n]; 
+        item.diff = item.pm - item.pk; 
+        return { name: n, ...item };
+    }).sort((a,b) => (b.p - a.p) || (b.diff - a.diff) || (b.totalPoin - a.totalPoin));
 
-        document.getElementById('standingsBody').innerHTML = sorted.map((s, idx) => `
-            <tr>
-                <td class="text-start fw-bold">${idx<3?['🥇','🥈','🥉'][idx]:''} ${s.name}</td>
-                <td>${s.m}</td><td>${s.w}</td><td>${s.l}</td>
-                <!-- <td class="${s.diff>=0?'text-success':'text-danger'} fw-bold">${s.diff>0?'+'+s.diff:s.diff}</td> -->
-                <td class="points-cell">${s.p}</td>
-            </tr>
-        `).join('');
-    }
+    document.getElementById('standingsBody').innerHTML = sorted.map((s, idx) => `
+        <tr>
+            <td class="text-start fw-bold">${idx<3?['🥇','🥈'][idx]:''} ${s.name}</td>
+            <td>${s.m}</td>
+            <td>${s.w}</td>
+            <td>${s.l}</td>
+            <td class="fw-bold text-primary">${s.totalPoin}</td> <td class="points-cell">${s.p}</td>
+        </tr>
+    `).join('');
+}
 
 	function formatIndo(dateStr) {
         if (!dateStr) return "-";
