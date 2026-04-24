@@ -1,1 +1,378 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PB Satria - Panghegar</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body { background-color: #f8f9fa; padding: 15px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .admin-only { display: none; }
+        .card { border-radius: 15px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .match-card { background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #198754; }
+        .round-header { background: #198754; color: white; padding: 10px; border-radius: 8px; margin-top: 20px; font-weight: bold; display: flex; justify-content: space-between; }
+        .edit-field { border: 1px dashed #ccc; border-radius: 4px; padding: 2px; font-size: 0.8rem; width: 100%; }
+        .score-input { width: 50px; text-align: center; font-weight: bold; border-radius: 5px; border: 1px solid #ddd; }
+		.status-selesai { background-color: #198754; color: white; padding: 2px 8px; border-radius: 5px; font-size: 0.7rem; font-weight: bold; }
+		.status-pending { background-color: #ffc107; color: #000; padding: 2px 8px; border-radius: 5px; font-size: 0.7rem; font-weight: bold; }
+		#standingsCol .card { border-top: 4px solid #198754; }
+		.table-custom { border-radius: 10px; overflow: hidden; }
+		.table-custom thead { background: linear-gradient(45deg, #141e30, #243b55); color: white; }
+		.table-custom tbody tr:hover { background-color: rgba(25, 135, 84, 0.1) !important; transition: 0.3s; }
+		.table-custom tbody tr:nth-child(1) { background-color: rgba(255, 215, 0, 0.15) !important; border-left: 4px solid #ffd700; }
+		.table-custom tbody tr:nth-child(2) { background-color: rgba(192, 192, 192, 0.15) !important; border-left: 4px solid #c0c0c0; }
+		.table-custom tbody tr:nth-child(3) { background-color: rgba(205, 127, 50, 0.15) !important; border-left: 4px solid #cd7f32; }
+		.points-cell { font-weight: 800; color: #198754; }
+    </style>
+</head>
+<body>
 
+<div class="container">
+	<div id="loadingOverlay" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); z-index: 9999; justify-content: center; align-items: center;">
+        <div class="text-center">
+            <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
+            <div class="mt-2 fw-bold">Memproses Data...</div>
+        </div>
+	</div>
+
+    <div class="text-center mb-4">
+        <h1 class="fw-bold text-success">🏸 REGAR CUP TOURNAMENT</h1>
+        <div id="syncStatus" class="badge bg-secondary">Mode: Visitor</div>
+        <button id="loginBtn" class="btn btn-sm btn-dark ms-2" onclick="loginAdmin()">Login Admin</button>
+    </div>
+
+    <div class="card p-3 mb-4 border-success border-top border-4">
+        <h6 class="fw-bold">🏸 Nama Kategori:</h6>
+        <div class="input-group">
+            <input type="text" id="categoryFilter" class="form-control form-control-lg" 
+                   placeholder="Ketik nama kategori (Contoh: Ganda Putra)..." 
+                   list="categoryOptions"
+                   oninput="renderSchedule(); calculateStandings();">
+            <datalist id="categoryOptions">
+                </datalist>
+            <span class="input-group-text bg-success text-white">🔍</span>
+        </div>
+        <small class="text-muted mt-1">*Ketik untuk mencari atau membuat kategori baru.</small>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-4 admin-only" id="adminPanel">
+            <div class="card p-3 border-primary border-top border-4">
+                <h5 class="fw-bold text-primary">⚙️ Kontrol Admin</h5>
+                <label class="small fw-bold">Tambah Tim (Kategori Aktif)</label>
+                <div class="input-group mb-3">
+                    <input type="text" id="teamInput" class="form-control" placeholder="Nama Ganda...">
+                    <button class="btn btn-primary" onclick="addTeam()">+</button>
+                </div>
+                <ul id="teamList" class="list-group list-group-flush mb-3 small"></ul>
+                <div class="mb-3">
+                    <label class="small fw-bold">Tanggal Mulai</label>
+                    <input type="date" id="startDate" class="form-control">
+                </div>
+                <button class="btn btn-success w-100 fw-bold mb-2" onclick="generateTournament()">GENERATE JADWAL</button>
+                <button class="btn btn-danger w-100 fw-bold" onclick="saveToSheets()">☁️ SIMPAN KE CLOUD</button>
+                <button class="btn btn-outline-secondary btn-sm w-100 mt-3" onclick="logoutAdmin()">Logout</button>
+            </div>
+        </div>
+
+        <div class="col-lg-8" id="standingsCol">
+            <div class="card p-3">
+                <h5 class="fw-bold">📊 Klasemen <span id="categoryLabel" class="text-success"></span></h5>
+                <div class="table-responsive">
+                    <table class="table table-hover table-custom text-center align-middle">
+                        <thead class="table-dark">
+                            <tr style="font-size: 0.8rem;">
+                                <th>TIM</th>
+                                <th>M</th><th>W</th><th>L</th><th>+/-</th><th>POIN</th>
+                            </tr>
+                        </thead>
+                        <tbody id="standingsBody" style="font-size: 0.9rem;"></tbody>
+                    </table>
+                </div>
+				<button class="btn btn-outline-primary btn-sm w-100 mt-2" onclick="exportToPNG()">🖼️ Download PNG</button>
+				<button class="btn btn-outline-primary btn-sm w-100 mt-2" onclick="exportToExcel()">📥 Download Excel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="scheduleContainer"></div>
+	<footer class="text-center mt-5 mb-4 text-muted">
+    <hr class="mb-4" style="opacity: 0.1;">
+    <p class="small mb-0">
+        &copy; 2026 <strong>REGAR CUP 2026</strong>. All Rights Reserved.
+    </p>
+    <p style="font-size: 0.75rem;">
+        By Juragan Pasir, Developed for REGAR CUP 2026 Tournament 
+    </p>
+</footer>
+</div>
+
+<script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw_INg6fVGhdqcEqEYYxSeVrk4Tm_ZDYKMIh1WPe9cVfSInpFD1dXphcJE01iJVbl0/exec"; 
+    const ADMIN_PIN = "admin1234"; 
+
+    let teams = []; 
+    let matches = []; 
+    let isAdmin = false;
+
+    window.onload = () => {
+        document.getElementById('startDate').valueAsDate = new Date();
+        loadFromSheets();
+    };
+
+    function loginAdmin() {
+        let pin = prompt("Masukkan PIN Admin:");
+        if(pin === ADMIN_PIN) {
+            isAdmin = true;
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            document.getElementById('loginBtn').style.display = 'none';
+            document.getElementById('syncStatus').innerText = "Mode: Admin";
+            document.getElementById('syncStatus').className = "badge bg-primary";
+            renderSchedule();
+        } else { alert("PIN Salah!"); }
+    }
+
+    function logoutAdmin() { location.reload(); }
+
+    async function loadFromSheets() {
+		showLoading();
+        try {
+            const res = await fetch(SCRIPT_URL);
+            const data = await res.json();
+            if(data.length > 0) {
+                matches = data;
+                updateCategoryDatalist();
+                renderSchedule();
+                calculateStandings();
+            }
+        } catch (e) { console.error("Error Loading", e); }
+		finally { hideLoading(); }
+    }
+
+    async function saveToSheets() {
+        if(!confirm("Simpan perubahan ke Cloud?")) return;
+		showLoading();
+        try {
+            await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(matches) });
+            alert("Berhasil disimpan!");
+            loadFromSheets();
+        } catch (e) { alert("Gagal Simpan"); }
+		finally { hideLoading(); }
+    }
+
+    function updateCategoryDatalist() {
+        const existingCats = [...new Set(matches.map(m => m.category))].filter(c => c);
+        const datalist = document.getElementById('categoryOptions');
+        datalist.innerHTML = existingCats.map(c => `<option value="${c}">`).join('');
+    }
+
+    function addTeam() {
+        const val = document.getElementById('teamInput').value.trim();
+        if (val) { teams.push({ name: val }); document.getElementById('teamInput').value = ""; renderTeams(); }
+    }
+
+    function renderTeams() {
+        document.getElementById('teamList').innerHTML = teams.map((t, i) => `
+            <li class="list-group-item d-flex justify-content-between py-1">
+                ${t.name} <span class="text-danger" style="cursor:pointer" onclick="teams.splice(${i},1);renderTeams()">×</span>
+            </li>
+        `).join('');
+    }
+
+	function showLoading() { document.getElementById('loadingOverlay').style.display = 'flex'; }
+	function hideLoading() { document.getElementById('loadingOverlay').style.display = 'none'; }
+
+    function generateTournament() {
+        const currentCat = document.getElementById('categoryFilter').value.trim();
+        if (!currentCat) return alert("Isi nama kategori terlebih dahulu!");
+        if (teams.length < 2) return alert("Minimal 2 tim!");
+        
+        if(!confirm(`Generate jadwal baru untuk ${currentCat}?`)) return;
+
+        matches = matches.filter(m => m.category !== currentCat);
+
+        let participants = teams.map(t => t.name);
+        if (participants.length % 2 !== 0) participants.push("BYE");
+
+        const numTeams = participants.length, rounds = numTeams - 1, half = numTeams / 2;
+        let baseDate = new Date(document.getElementById('startDate').value);
+        let tempTeams = [...participants];
+
+        for (let r = 0; r < rounds; r++) {
+            let roundDate = new Date(baseDate);
+            roundDate.setDate(baseDate.getDate() + (r * 7));
+            let dateStr = roundDate.toISOString().split('T')[0];
+            for (let i = 0; i < half; i++) {
+                let t1 = tempTeams[i], t2 = tempTeams[numTeams - 1 - i];
+                if (t1 !== "BYE" && t2 !== "BYE") {
+                    matches.push({ 
+                        t1: t1, t2: t2, round: r + 1, date: dateStr, 
+                        court: i + 1, s1: "", s2: "", note: "", 
+                        done: false, category: currentCat 
+                    });
+                }
+            }
+            tempTeams.splice(1, 0, tempTeams.pop());
+        }
+        teams = []; 
+        renderTeams();
+        updateCategoryDatalist();
+        renderSchedule(); 
+        calculateStandings();
+    }
+
+    function editMatch(indexInFiltered, field, value) {
+        if(!isAdmin) return;
+        const currentCat = document.getElementById('categoryFilter').value.trim();
+        const filtered = matches.filter(m => m.category === currentCat);
+        const originalIndex = matches.indexOf(filtered[indexInFiltered]);
+
+        matches[originalIndex][field] = value;
+        if(field === 's1' || field === 's2') {
+            matches[originalIndex].done = (matches[originalIndex].s1 !== "" && matches[originalIndex].s2 !== "" && matches[originalIndex].s1 !== null);
+        }
+        if(field === 'round' || field === 'date') renderSchedule();
+        calculateStandings();
+    }
+
+    function renderSchedule() {
+        const container = document.getElementById('scheduleContainer');
+        const currentCat = document.getElementById('categoryFilter').value.trim();
+        const filtered = matches.filter(m => m.category === currentCat);
+
+        if (!filtered.length) { container.innerHTML = "<div class='alert alert-light text-center mt-3'>Ketik nama kategori untuk melihat jadwal.</div>"; return; }
+        
+        filtered.sort((a, b) => a.round - b.round);
+        let html = "", currentRound = -1;
+
+        filtered.forEach((m, i) => {
+            if (m.round !== currentRound) {
+                if (currentRound !== -1) html += `</div>`; 
+                currentRound = m.round;
+                html += `<div class="round-header"><span>PUTARAN ${currentRound}</span> <small>${formatIndo(m.date)}</small></div><div class="row mt-2">`;
+            }
+            html += `
+                <div class="col-md-6 col-lg-4">
+                    <div class="match-card">
+                        <div class="d-flex justify-content-between mb-2 small text-muted">
+                            ${isAdmin ? 
+                            `<span><input type="date" class="edit-field" value="${formatToInputDate(m.date)}" onchange="editMatch(${i}, 'date', this.value)"></span>
+                             <span>L:<input type="text" class="edit-field" style="width:30px" value="${m.court}" onchange="editMatch(${i}, 'court', this.value)"></span>` :
+                            `<span>📅 ${formatIndo(m.date)}</span> <span>🏟️ Lap: ${m.court}</span>`}
+							<span class="${m.done ? 'status-selesai' : 'status-pending'}">${m.done ? 'Selesai' : 'Pending'}</span>
+                        </div>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="fw-bold" style="flex: 1; min-width: 0; word-wrap: break-word;">${m.t1}</div>
+                            <div class="d-flex gap-1">
+                                <input type="number" class="score-input" value="${m.s1}" ${!isAdmin ? 'disabled' : ''} oninput="editMatch(${i}, 's1', this.value)">
+                                <input type="number" class="score-input" value="${m.s2}" ${!isAdmin ? 'disabled' : ''} oninput="editMatch(${i}, 's2', this.value)">
+								${isAdmin ? `<button class="btn btn-sm btn-outline-danger ms-1" title="Simpan Skor Ini" onclick="saveToSheets()">☁️</button>` : ''}
+							</div>
+                            <div class="fw-bold text-end" style="flex: 1; min-width: 0; word-wrap: break-word;">${m.t2}</div>
+                        </div>
+                        ${isAdmin ? 
+                        `<input type="text" class="note-input mt-2 form-control form-control-sm" placeholder="Catatan..." value="${m.note || ''}" onchange="editMatch(${i}, 'note', this.value)">` :
+                        (m.note ? `<div class="small text-muted mt-2">📝 ${m.note}</div>` : '')}
+                    </div>
+                </div>`;
+        });
+        container.innerHTML = html + `</div>`;
+    }
+
+    function calculateStandings() {
+        const currentCat = document.getElementById('categoryFilter').value.trim();
+        document.getElementById('categoryLabel').innerText = currentCat ? `(${currentCat})` : "";
+        
+        const filtered = matches.filter(m => m.category === currentCat);
+        let catTeams = [...new Set(filtered.map(m => [m.t1, m.t2]).flat())];
+        
+        let stats = {};
+        catTeams.forEach(name => { if(name !== "BYE") stats[name] = { m:0, w:0, l:0, pm:0, pk:0, diff:0, p:0 }; });
+
+        filtered.forEach(m => {
+            if (m.done && stats[m.t1] && stats[m.t2]) {
+                let s1 = parseInt(m.s1), s2 = parseInt(m.s2);
+                stats[m.t1].m++; stats[m.t2].m++;
+                stats[m.t1].pm += s1; stats[m.t1].pk += s2;
+                stats[m.t2].pm += s2; stats[m.t2].pk += s1;
+                if (s1 > s2) { stats[m.t1].w++; stats[m.t1].p += 3; stats[m.t2].l++; }
+                else if (s2 > s1) { stats[m.t2].w++; stats[m.t2].p += 3; stats[m.t1].l++; }
+            }
+        });
+
+        const sorted = Object.keys(stats).map(n => {
+            let item = stats[n]; item.diff = item.pm - item.pk; return { name: n, ...item };
+        }).sort((a,b) => (b.p - a.p) || (b.diff - a.diff));
+
+        document.getElementById('standingsBody').innerHTML = sorted.map((s, idx) => `
+            <tr>
+                <td class="text-start fw-bold">${idx<3?['🥇','🥈','🥉'][idx]:''} ${s.name}</td>
+                <td>${s.m}</td><td>${s.w}</td><td>${s.l}</td>
+                <td class="${s.diff>=0?'text-success':'text-danger'} fw-bold">${s.diff>0?'+'+s.diff:s.diff}</td>
+                <td class="points-cell">${s.p}</td>
+            </tr>
+        `).join('');
+    }
+
+	function formatIndo(dateStr) {
+        if (!dateStr) return "-";
+        const d = new Date(dateStr);
+        return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+	}
+
+	function formatToInputDate(dateStr) {
+        if (!dateStr) return "";
+        const d = new Date(dateStr);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+	}
+
+	async function exportToPNG() {
+        showLoading();
+        const element = document.getElementById('standingsCol');
+        try {
+            const canvas = await html2canvas(element, { scale: 2 });
+            const link = document.createElement('a');
+            link.download = `Klasemen_${document.getElementById('categoryFilter').value}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        } catch (e) { alert("Gagal export"); }
+        finally { hideLoading(); }
+	}
+
+    function exportToExcel() {
+        const currentCat = document.getElementById('categoryFilter').value;
+        const filtered = matches.filter(m => m.category === currentCat);
+        const data = [["Putaran", "Tanggal", "Tim 1", "S1", "S2", "Tim 2", "Lap", "Ket"]];
+        filtered.forEach(m => data.push([m.round, formatIndo(m.date), m.t1, m.s1, m.s2, m.t2, m.court, m.note]));
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Jadwal");
+        XLSX.writeFile(wb, `PB_Survey_${currentCat}.xlsx`);
+    }
+	
+	async function quickSave() {
+    // Kita langsung panggil saveToSheets tanpa confirm agar cepat
+    // Tapi kita ganti sedikit logikanya agar user tahu proses sedang berjalan
+    showLoading();
+    try {
+        const dataToSave = matches.map(m => ({
+            round: m.round, date: m.date, t1: m.t1, s1: m.s1, s2: m.s2, 
+            t2: m.t2, court: m.court, note: m.note, done: m.done, category: m.category
+        }));
+
+        await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(dataToSave) });
+        
+        // Notifikasi kecil (opsional)
+        console.log("Data tersimpan otomatis");
+    } catch (e) { 
+        alert("Gagal Simpan Otomatis"); 
+    } finally { 
+        hideLoading(); 
+    }
+	}
+	
+</script>
+</body>
+</html>
