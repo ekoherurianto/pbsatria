@@ -324,7 +324,7 @@
 
     document.getElementById('standingsBody').innerHTML = sorted.map((s, idx) => `
         <tr>
-            <td class="text-start fw-bold">${idx<3?['🥇','🥈'][idx]:''} ${s.name}</td>
+            <td class="text-start fw-bold">${idx<2?['🥇','🥈','🥉'][idx]:''} ${s.name}</td>
             <td>${s.m}</td>
             <td>${s.w}</td>
             <td>${s.l}</td>
